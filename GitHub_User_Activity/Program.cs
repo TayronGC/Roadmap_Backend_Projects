@@ -1,142 +1,96 @@
 ﻿
-using System.Net.Http.Headers;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 
 HttpClient client = new HttpClient();
-
-string url = "https://api.github.com/users/";
-
+client.DefaultRequestHeaders.Add("Accept", "application/vnd.github+json");
+client.DefaultRequestHeaders.Add("User-Agent", "MiAppConsole");
+string baseUrl = "https://api.github.com/users/";
 
 while (true)
 {
-
-    Console.WriteLine("Insert username");
-    var user = Console.ReadLine();
-
-    url = url + user + "/events";
     try
     {
-        //client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        client.DefaultRequestHeaders.Add("Accept", "application/vnd.github+json");
-        client.DefaultRequestHeaders.Add("User-Agent", "MiAppConsole");
+        Console.Write("> ");
+        var input = Console.ReadLine();
 
-        //client.DefaultRequestHeaders.Add("per_page", "30");
-        //client.DefaultRequestHeaders.Add("Page", "1");
+        var parts = input.Split(' ', StringSplitOptions.RemoveEmptyEntries);
 
-        HttpResponseMessage response = client.GetAsync(url).Result;
+        if (parts.Length != 2 || !parts[0].Equals("github-activity", StringComparison.OrdinalIgnoreCase))
+        {
+            Console.WriteLine("You mean: github-activity <username>");
+            continue;
+        }
 
+        string user = parts[1].Trim('<', '>');
+        string url = baseUrl + user + "/events";
 
-        Console.WriteLine(response);
-
+        HttpResponseMessage response = await client.GetAsync(url);
         response.EnsureSuccessStatusCode();
 
-        string responseBody = await response.Content.ReadAsStringAsync();
-
-        //Console.WriteLine(responseBody);
-
-        List<Root> myDeserializedClass = JsonSerializer.Deserialize<List<Root>>(responseBody);
-
-        //Root root1 = JsonSerializer.Deserialize<Root>(responseBody);
-        //Console.WriteLine(root1.repo.name);
-
-        //var cantComits = 0;
-        foreach (var item in myDeserializedClass)
-        {
-
-            //Console.WriteLine(item.payload.commits);
-            //Console.WriteLine("***");
-            if (item.payload.commits != null)
-            {
-                foreach (var commit in item.payload.commits)
-                {
-                    Console.WriteLine(commit.message);
-                    Console.WriteLine(commit.url);
-                }
-            }
-
-        }
-        //foreach (Root root in myDeserializedClass)
-        //{
-        //    Console.WriteLine(root.id);
-        //    Console.WriteLine(root.repo.name);
-        //    //Console.WriteLine($"Pushed {} commits to {}");
-        //}
-
-        //List<string> output = JsonSerializer.Deserialize<string>(response.Content);
-
-
-        //Console.WriteLine(output);
-
-        //Console.WriteLine(response);
-
-        //Console.WriteLine(responseBody);
-
-
-        var eventos = JsonSerializer.Deserialize<List<Root>>(responseBody);
+        string json = await response.Content.ReadAsStringAsync();
+        var eventos = JsonSerializer.Deserialize<List<Root>>(json);
 
         foreach (var item in eventos)
-        {
-            string repo = item.repo.name;
-            string mensaje = null;
-            //if(item.payload?.commits?.Count != null)
-            //{
-            //    Console.WriteLine($"Pushed {item.payload?.commits?.Count} commits to {repo}");
-            //}
+                {
+                    string repo = item.repo.name;
+                    string mensaje = null;
+                    //if(item.payload?.commits?.Count != null)
+                    //{
+                    //    Console.WriteLine($"Pushed {item.payload?.commits?.Count} commits to {repo}");
+                    //}
 
-            switch (item.type)
-            {
-                case "PushEvent":
-                    int cantCommits = item.payload?.commits?.Count ?? 0;
-                    mensaje = $"- Pushed {cantCommits} commit(s) to {repo}";
-                    break;
-                case "IssuesEvent":
-                    if (item.payload?.action == "opened")
+                    switch (item.type)
                     {
-                        mensaje = $"- Opened a new issue in {repo}";
-                    }
-                    break;
+                        case "PushEvent":
+                            int cantCommits = item.payload?.commits?.Count ?? 0;
+                            mensaje = $"- Pushed {cantCommits} commit(s) to {repo}";
+                            break;
+                        case "IssuesEvent":
+                            if (item.payload?.action == "opened")
+                            {
+                                mensaje = $"- Opened a new issue in {repo}";
+                            }
+                            break;
 
-                case "WatchEvent":
-                    if (item.payload?.action == "started")
+                        case "WatchEvent":
+                            if (item.payload?.action == "started")
+                            {
+                                mensaje = $"- Starred {repo}";
+                            }
+                            break;
+
+                        default:
+                            break;
+                    }
+
+                    if (!string.IsNullOrEmpty(mensaje))
                     {
-                        mensaje = $"- Starred {repo}";
+                        Console.WriteLine(mensaje);
                     }
-                    break;
 
-                default:
-                    break;
-            }
-
-            if (!string.IsNullOrEmpty(mensaje))
-            {
-                Console.WriteLine(mensaje);
-            }
-
+                
         }
-
-        //foreach (var evento in eventos)
-        //{
-        //    string repo = evento.repo.name;
-        //    string mensaje = evento.type switch
-        //    {
-        //        "PushEvent" => $"- Pushed {evento.payload?.commits?.Count ?? 0} commit(s) to {repo}",
-        //        "IssuesEvent" when evento.payload?.action == "opened" => $"- Opened a new issue in {repo}",
-        //        "WatchEvent" when evento.payload?.action == "started" => $"- Starred {repo}",
-        //        _ => null // O ignora otros eventos
-        //    };
-
-        //    if (!string.IsNullOrEmpty(mensaje))
-        //    {
-        //        Console.WriteLine(mensaje);
-        //    }
-        //}
+        
+    }
+    catch (HttpRequestException e)
+    {
+        //Console.WriteLine($"Error: {e.Message}");
+        if (e.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            Console.WriteLine("User not found. Please check username");
+        }
+        else
+        {
+            Console.WriteLine($"HTTP error code: {(int?)e.StatusCode}");
+        }
     }
     catch (Exception ex)
     {
         Console.WriteLine($"Error: {ex.Message}");
     }
 }
+
+
 
 public class Actor
 {
